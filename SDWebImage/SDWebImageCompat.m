@@ -23,6 +23,7 @@ inline UIImage *SDScaledImageForKey(NSString * _Nullable key, UIImage * _Nullabl
     return image;
 #elif SD_UIKIT || SD_WATCH
     if ((image.images).count > 0) {
+        //image.images : For an animated image, this property holds the complete array of UIImage objects that make up the animation.For a non-animated image, the value of this property is nil.
         NSMutableArray<UIImage *> *scaledImages = [NSMutableArray array];
 
         for (UIImage *tempImage in image.images) {

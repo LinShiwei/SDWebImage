@@ -10,7 +10,18 @@
 #import "SDWebImageDecoder.h"
 
 @implementation UIImage (ForceDecode)
-
+/*
+ 对于 mac 这两个方法直接返回原image
+ + (nullable UIImage *)decodedImageWithImage:(nullable UIImage *)image {
+ return image;
+ }
+ 
+ + (nullable UIImage *)decodedAndScaledDownImageWithImage:(nullable UIImage *)image {
+ return image;
+ }
+ 
+ 对于有uikit的或是watch，需要额外操作
+ */
 #if SD_UIKIT || SD_WATCH
 static const size_t kBytesPerPixel = 4;
 static const size_t kBitsPerComponent = 8;
@@ -19,12 +30,16 @@ static const size_t kBitsPerComponent = 8;
     if (![UIImage shouldDecodeImage:image]) {
         return image;
     }
+    //image!=nil&&image不是动图&&image无alpha通道，才decode image
+    //解压图片，将image在内存中展开成位图（bitmap），返回无alpha通道的bitmap（有些早期版本返回的是带alpha的bitmap）。
+    
     
     // autorelease the bitmap context and all vars to help system to free memory when there are memory warning.
     // on iOS7, do not forget to call [[SDImageCache sharedImageCache] clearMemory];
     @autoreleasepool{
         
         CGImageRef imageRef = image.CGImage;
+        //     支持的色彩空间：RGB,Lab,DeviceN,Pattern，默认是RGB
         CGColorSpaceRef colorspaceRef = [UIImage colorSpaceForImageRef:imageRef];
         
         size_t width = CGImageGetWidth(imageRef);
@@ -38,9 +53,9 @@ static const size_t kBitsPerComponent = 8;
                                                      width,
                                                      height,
                                                      kBitsPerComponent,
-                                                     bytesPerRow,
+                                                     bytesPerRow,//手动计算大小，传入0的话，会让系统自动计算
                                                      colorspaceRef,
-                                                     kCGBitmapByteOrderDefault|kCGImageAlphaNoneSkipLast);
+                                                     kCGBitmapByteOrderDefault|kCGImageAlphaNoneSkipLast);// 不带alpha
         if (context == NULL) {
             return image;
         }
@@ -248,7 +263,19 @@ static const CGFloat kDestSeemOverlap = 2.0f;   // the numbers of pixels to over
     // current
     CGColorSpaceModel imageColorSpaceModel = CGColorSpaceGetModel(CGImageGetColorSpace(imageRef));
     CGColorSpaceRef colorspaceRef = CGImageGetColorSpace(imageRef);
-    
+    /*
+     typedef enum CGColorSpaceModel : int32_t {
+     kCGColorSpaceModelUnknown = -1,
+     kCGColorSpaceModelMonochrome,
+     kCGColorSpaceModelRGB,
+     kCGColorSpaceModelCMYK,
+     kCGColorSpaceModelLab,
+     kCGColorSpaceModelDeviceN,
+     kCGColorSpaceModelIndexed,
+     kCGColorSpaceModelPattern
+     } CGColorSpaceModel;
+     支持的色彩空间：RGB,Lab,DeviceN,Pattern
+     */
     BOOL unsupportedColorSpace = (imageColorSpaceModel == kCGColorSpaceModelUnknown ||
                                   imageColorSpaceModel == kCGColorSpaceModelMonochrome ||
                                   imageColorSpaceModel == kCGColorSpaceModelCMYK ||
@@ -257,6 +284,7 @@ static const CGFloat kDestSeemOverlap = 2.0f;   // the numbers of pixels to over
         colorspaceRef = CGColorSpaceCreateDeviceRGB();
         CFAutorelease(colorspaceRef);
     }
+    //返回支持的色彩空间，或RGB色彩空间
     return colorspaceRef;
 }
 #elif SD_MAC

@@ -81,7 +81,9 @@ typedef NSMutableDictionary<NSString *, id> SDCallbacksDictionary;
 - (void)dealloc {
     SDDispatchQueueRelease(_barrierQueue);
 }
-
+/*
+ 添加随下载进度增加和下载完成的handle block，加入到 callbackBlocks
+ */
 - (nullable id)addHandlersForProgress:(nullable SDWebImageDownloaderProgressBlock)progressBlock
                             completed:(nullable SDWebImageDownloaderCompletedBlock)completedBlock {
     SDCallbacksDictionary *callbacks = [NSMutableDictionary new];
@@ -92,7 +94,9 @@ typedef NSMutableDictionary<NSString *, id> SDCallbacksDictionary;
     });
     return callbacks;
 }
-
+/*
+ 获取 callbackBlocks 的副本（不是指针）
+ */
 - (nullable NSArray<id> *)callbacksForKey:(NSString *)key {
     __block NSMutableArray<id> *callbacks = nil;
     dispatch_sync(self.barrierQueue, ^{
@@ -126,6 +130,7 @@ typedef NSMutableDictionary<NSString *, id> SDCallbacksDictionary;
         }
 
 #if SD_UIKIT
+        // 如果有UIKit，那么设置background task expiration handler
         Class UIApplicationClass = NSClassFromString(@"UIApplication");
         BOOL hasApplication = UIApplicationClass && [UIApplicationClass respondsToSelector:@selector(sharedApplication)];
         if (hasApplication && [self shouldContinueWhenAppEntersBackground]) {
@@ -161,11 +166,14 @@ typedef NSMutableDictionary<NSString *, id> SDCallbacksDictionary;
         
         self.dataTask = [session dataTaskWithRequest:self.request];
         self.executing = YES;
-    }
+    }//这一段加锁的原因？
     
     [self.dataTask resume];
 
+    // 如果有dataTask，调用progress block，并post notif
+    // 否则调用complete block，报错NSError
     if (self.dataTask) {
+        //这里只有一个progress block
         for (SDWebImageDownloaderProgressBlock progressBlock in [self callbacksForKey:kProgressCallbackKey]) {
             progressBlock(0, NSURLResponseUnknownLength, self.request.URL);
         }
@@ -178,6 +186,8 @@ typedef NSMutableDictionary<NSString *, id> SDCallbacksDictionary;
     }
 
 #if SD_UIKIT
+    // 如果有 uiapplication.sharedApplication 调用endbackgroundtask，否则 return
+    
     Class UIApplicationClass = NSClassFromString(@"UIApplication");
     if(!UIApplicationClass || ![UIApplicationClass respondsToSelector:@selector(sharedApplication)]) {
         return;
@@ -195,7 +205,9 @@ typedef NSMutableDictionary<NSString *, id> SDCallbacksDictionary;
         [self cancelInternal];
     }
 }
-
+/*
+ 取消opera，取消dataTask，post notif， reset
+ */
 - (void)cancelInternal {
     if (self.isFinished) return;
     [super cancel];
@@ -222,6 +234,11 @@ typedef NSMutableDictionary<NSString *, id> SDCallbacksDictionary;
     [self reset];
 }
 
+/*
+ 异步barrier移除callbackblocks
+ imageData = nil
+ ownedSessin = nil
+ */
 - (void)reset {
     __weak typeof(self) weakSelf = self;
     dispatch_barrier_async(self.barrierQueue, ^{
@@ -266,6 +283,15 @@ typedef NSMutableDictionary<NSString *, id> SDCallbacksDictionary;
 
 #pragma mark NSURLSessionDataDelegate
 
+/* 收到相应后调用，
+
+ response不响应statusCode 或 （statusCode！=304且小于400）
+    - 设置expectedSize，调用progressBlock，post notif
+ response响应statusCode 且 （statusCode==304大于400）
+    - ==304,cancelInternal
+    - 》400，cancel dataTask
+    - post notif
+ */
 - (void)URLSession:(NSURLSession *)session
           dataTask:(NSURLSessionDataTask *)dataTask
 didReceiveResponse:(NSURLResponse *)response
@@ -273,6 +299,7 @@ didReceiveResponse:(NSURLResponse *)response
     
     //'304 Not Modified' is an exceptional one
     if (![response respondsToSelector:@selector(statusCode)] || (((NSHTTPURLResponse *)response).statusCode < 400 && ((NSHTTPURLResponse *)response).statusCode != 304)) {
+        //response不响应statusCode 或 （statusCode！=304且小于400）
         NSInteger expected = (NSInteger)response.expectedContentLength;
         expected = expected > 0 ? expected : 0;
         self.expectedSize = expected;
@@ -287,6 +314,7 @@ didReceiveResponse:(NSURLResponse *)response
             [[NSNotificationCenter defaultCenter] postNotificationName:SDWebImageDownloadReceiveResponseNotification object:weakSelf];
         });
     } else {
+        //response响应statusCode 且 （statusCode==304大于400）
         NSUInteger code = ((NSHTTPURLResponse *)response).statusCode;
         
         //This is the case when server returns '304 Not Modified'. It means that remote image is not changed.
@@ -310,7 +338,10 @@ didReceiveResponse:(NSURLResponse *)response
         completionHandler(NSURLSessionResponseAllow);
     }
 }
-
+/*
+ 收到数据调用，重复调用
+ imageData append data；
+ */
 - (void)URLSession:(NSURLSession *)session dataTask:(NSURLSessionDataTask *)dataTask didReceiveData:(NSData *)data {
     [self.imageData appendData:data];
 
@@ -374,10 +405,11 @@ didReceiveResponse:(NSURLResponse *)response
 #if SD_UIKIT || SD_WATCH
                 UIImage *image = [UIImage imageWithCGImage:partialImageRef scale:1 orientation:orientation];
 #elif SD_MAC
+                // #define UIImage NSImage
                 UIImage *image = [[UIImage alloc] initWithCGImage:partialImageRef size:NSZeroSize];
 #endif
                 NSString *key = [[SDWebImageManager sharedManager] cacheKeyForURL:self.request.URL];
-                UIImage *scaledImage = [self scaledImageForKey:key image:image];
+                UIImage *scaledImage = [self scaledImageForKey:key image:image];//lsw:scale
                 if (self.shouldDecompressImages) {
                     image = [UIImage decodedImageWithImage:scaledImage];
                 }
@@ -472,6 +504,7 @@ didReceiveResponse:(NSURLResponse *)response
     [self done];
 }
 
+// 认证授权
 - (void)URLSession:(NSURLSession *)session task:(NSURLSessionTask *)task didReceiveChallenge:(NSURLAuthenticationChallenge *)challenge completionHandler:(void (^)(NSURLSessionAuthChallengeDisposition disposition, NSURLCredential *credential))completionHandler {
     
     NSURLSessionAuthChallengeDisposition disposition = NSURLSessionAuthChallengePerformDefaultHandling;

@@ -27,6 +27,14 @@ static char TAG_ACTIVITY_SHOW;
     return objc_getAssociatedObject(self, &imageURLKey);
 }
 
+/*
+ sd_internalSetImageWithURL的主要功能是：
+ 1、对设置的URL创建一个 id <SDWebImageOperation> 对象，这个对象内封装了一个NSOperation，
+ 2、并将这个对象添加到 SDOperationsDictionary 字典（这个字典每个UIView都有，UIView (WebCacheOperation)）中，在字典中添加新key-value时，会将原先存在的相同key的键值删掉。
+    默认使用的key是 String of [self class],也可以外部自定义。
+    这样是为了在view被复用的时候，能够加载正确的url。
+ 3、还处理了indicator view。
+ */
 - (void)sd_internalSetImageWithURL:(nullable NSURL *)url
                   placeholderImage:(nullable UIImage *)placeholder
                            options:(SDWebImageOptions)options
@@ -47,10 +55,13 @@ static char TAG_ACTIVITY_SHOW;
     if (url) {
         // check if activityView is enabled or not
         if ([self sd_showActivityIndicatorView]) {
+            //当外部设置显示indicator时，添加subview->indicator
             [self sd_addActivityIndicator];
         }
         
         __weak __typeof(self)wself = self;
+        //loadImageWithURL 返回的是一个遵循SDWebImageOperation的自定义的NSObject（SDWebImageCombinedOperation），这个对象（SDWebImageCombinedOperation）内封装了一个nsoperation
+        
         id <SDWebImageOperation> operation = [SDWebImageManager.sharedManager loadImageWithURL:url options:options progress:progressBlock completed:^(UIImage *image, NSData *data, NSError *error, SDImageCacheType cacheType, BOOL finished, NSURL *imageURL) {
             __strong __typeof (wself) sself = wself;
             [sself sd_removeActivityIndicator];

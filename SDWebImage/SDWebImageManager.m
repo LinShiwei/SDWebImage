@@ -125,19 +125,23 @@
 
     BOOL isFailedUrl = NO;
     if (url) {
+        // 用 self.failedURLs 枷锁
         @synchronized (self.failedURLs) {
             isFailedUrl = [self.failedURLs containsObject:url];
         }
     }
 
+    // 如果url长度为0或者（不用失败重试且是一个失败的URL），那么直接调用completionBlock并且报错NSURLErrorFileDoesNotExist：
     if (url.absoluteString.length == 0 || (!(options & SDWebImageRetryFailed) && isFailedUrl)) {
         [self callCompletionBlockForOperation:operation completion:completedBlock error:[NSError errorWithDomain:NSURLErrorDomain code:NSURLErrorFileDoesNotExist userInfo:nil] url:url];
         return operation;
     }
-
+    // 如果url长度不为0 且 （需要失败重试 或者 并不是一个失败的URL），那么：
     @synchronized (self.runningOperations) {
         [self.runningOperations addObject:operation];
     }
+    
+    // 利用这个URL生成对应的cacheKey，（可以对这个url进行一些操作，使这个key简单一些。如：过滤掉url种的一些参数。）
     NSString *key = [self cacheKeyForURL:url];
 
     operation.cacheOperation = [self.imageCache queryCacheOperationForKey:key done:^(UIImage *cachedImage, NSData *cachedData, SDImageCacheType cacheType) {
