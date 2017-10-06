@@ -160,6 +160,7 @@ FOUNDATION_STATIC_INLINE NSUInteger SDCacheCostForImage(UIImage *image) {
     return [path stringByAppendingPathComponent:filename];
 }
 
+// 有默认的缓存目录，也可以自定义。磁盘中cache文件的路径=目录+名称。磁盘中Cache的名称是通过对key（URL）的UTF8String取md5，在加上key的pathExtension。 取md5的目的是使key长度一致？？？
 - (nullable NSString *)defaultCachePathForKey:(nullable NSString *)key {
     return [self cachePathForKey:key inPath:self.diskCachePath];
 }

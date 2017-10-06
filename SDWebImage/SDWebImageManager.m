@@ -102,6 +102,7 @@
     }];
 }
 
+// 返回id <SDWebImageOperation>是为了把它放入字典中，并且后续可以取消这个operation
 - (id <SDWebImageOperation>)loadImageWithURL:(nullable NSURL *)url
                                      options:(SDWebImageOptions)options
                                     progress:(nullable SDWebImageDownloaderProgressBlock)progressBlock
@@ -144,12 +145,16 @@
     // 利用这个URL生成对应的cacheKey，（可以对这个url进行一些操作，使这个key简单一些。如：过滤掉url种的一些参数。）
     NSString *key = [self cacheKeyForURL:url];
 
+    //SDImageCache *imageCache,SDImageCache 里面封装了一个 NSCache子类对象（AutoPurgeCache，注册了系统的内存警告通知，会自动调用removeAllObjects），在NSCache里是直接缓存UIImage
     operation.cacheOperation = [self.imageCache queryCacheOperationForKey:key done:^(UIImage *cachedImage, NSData *cachedData, SDImageCacheType cacheType) {
         if (operation.isCancelled) {
             [self safelyRemoveOperationFromRunning:operation];
             return;
         }
 
+        //（如果没有找到缓存的image 或者 要刷新缓存）且 （delegate没有实现imageManager:shouldDownloadImageForURL:方法 或者 delegate的这个方法返回true），那么：
+    
+        // PS: （delegate没有实现imageManager:shouldDownloadImageForURL:方法 或者 delegate的这个方法返回true）->这样进行条件判断的目的是，使默认shouldDownloadImageForURL返回true。如果没有定义shouldDownloadImageForURL的话，就相当于返回true。
         if ((!cachedImage || options & SDWebImageRefreshCached) && (![self.delegate respondsToSelector:@selector(imageManager:shouldDownloadImageForURL:)] || [self.delegate imageManager:self shouldDownloadImageForURL:url])) {
             if (cachedImage && options & SDWebImageRefreshCached) {
                 // If image was found in the cache but SDWebImageRefreshCached is provided, notify about the cached image

@@ -31,7 +31,7 @@ static const size_t kBitsPerComponent = 8;
         return image;
     }
     //image!=nil&&image不是动图&&image无alpha通道，才decode image
-    //解压图片，将image在内存中展开成位图（bitmap），返回无alpha通道的bitmap（有些早期版本返回的是带alpha的bitmap）。
+    //解压图片，将image（可能是其他格式的）在内存中展开成位图（bitmap），返回无alpha通道的bitmap（有些早期版本返回的是带alpha的bitmap）。
     
     
     // autorelease the bitmap context and all vars to help system to free memory when there are memory warning.
